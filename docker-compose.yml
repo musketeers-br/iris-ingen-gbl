@@ -13,3 +13,5 @@ services:
       - 53773
     volumes:
       - ./:/home/irisowner/dev
+    environment:
+        - OPENAI_KEY=${OPENAI_KEY}
