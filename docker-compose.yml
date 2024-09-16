@@ -14,4 +14,4 @@ services:
     volumes:
       - ./:/home/irisowner/dev
     environment:
-        - OPENAI_KEY=${OPENAI_KEY}
+        - OPENAI_API_KEY=${OPENAI_API_KEY}

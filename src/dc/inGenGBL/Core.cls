@@ -23,7 +23,7 @@ ClassMethod Split(gblName As %String, chunkSize As %Integer = 3, startAt As %Str
     Return output
 }
 
-ClassMethod Process(input As %String) As %String [ Language = python ]
+ClassMethod Process(input As %String = "") As %String [ Language = python ]
 {
     import os
     from dotenv import load_dotenv
@@ -32,10 +32,12 @@ ClassMethod Process(input As %String) As %String [ Language = python ]
     import json
 
     # Import langchain
+    from langchain_openai import ChatOpenAI
+    from langchain.prompts import ChatPromptTemplate
+    from langchain.chains import LLMChain
     from langchain.chains.router import MultiPromptChain
     from langchain.chains.router.llm_router import LLMRouterChain, RouterOutputParser
     from langchain.prompts import PromptTemplate
-    from langchain_openai import ChatOpenAI
 
     load_dotenv()
 
@@ -203,6 +205,9 @@ ClassMethod MappingGlobal(name, subscript, separator="^") As %Status [ Language 
         chain = LLMChain(llm=llm, prompt=prompt)
         destination_chains[name] = chain
 
+    destinations = [f"{p['name']}: {p['description']}" for p in prompt_infos]
+    destinations_str = "\n".join(destinations)
+
     # Define a default chain for inputs that don't match any specialized prompt
     default_prompt = ChatPromptTemplate.from_template("{input}")
     default_chain = LLMChain(llm=llm, prompt=default_prompt)
@@ -241,21 +246,29 @@ ClassMethod MappingGlobal(name, subscript, separator="^") As %Status [ Language 
 
     ```)>>"""
 
-    # Create the router prompt template
-    router_template = MULTI_PROMPT_ROUTER_TEMPLATE.format(destinations=destinations_str)  # (a prompt template for the router to use)
-    router_prompt = PromptTemplate(template=router_template, input_variables=["input"], output_parser=RouterOutputParser())
-    router_chain = LLMRouterChain.from_llm(llm, router_prompt)
+    try:
 
-    # Create the MultiPromptChain
-    chain = MultiPromptChain(
-        router_chain=router_chain,
-        destination_chains=destination_chains,
-        default_chain=default_chain,
-        verbose=True,
-    )
+        # Create the router prompt template
+        router_template = MULTI_PROMPT_ROUTER_TEMPLATE.format(destinations=destinations_str)  # (a prompt template for the router to use)
+        router_prompt = PromptTemplate(template=router_template, input_variables=["input"], output_parser=RouterOutputParser())
+        router_chain = LLMRouterChain.from_llm(llm, router_prompt)
+
+        # Create the MultiPromptChain
+        chain = MultiPromptChain(
+            router_chain=router_chain,
+            destination_chains=destination_chains,
+            default_chain=default_chain,
+            verbose=True,
+        )
+
+        result = chain.invoke("help to mapping a global called glbs with caret as separator")
+    except Exception as err:
+        print( str(err))
+        return {"error": str(err)}
 
 
-    return json.dumps(chain)
+
+    return json.dumps(result)
 }
 
 }

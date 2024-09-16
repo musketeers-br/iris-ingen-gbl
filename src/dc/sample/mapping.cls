@@ -1,7 +1,7 @@
-Class dc.sample.mapping Extends %RegisteredObject
+Class dc.sample.Mapping Extends %RegisteredObject
 {
 
-ClassMethod populateHero()
+ClassMethod PopulateHero()
 {
     Set ^glbs($I(^glbs))="Steve Rogers^Captain America^Avenger"
     Set ^glbs($I(^glbs))="Tony Stark^Iron Man^Avenger"
