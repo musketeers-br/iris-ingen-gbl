@@ -32,20 +32,88 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
     import json
 
     # Import langchain
+    from operator import itemgetter
+    from typing import Literal
+    from typing_extensions import TypedDict
+
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_core.prompts import ChatPromptTemplate
+    from langchain_core.runnables import RunnableLambda, RunnablePassthrough
     from langchain_openai import ChatOpenAI
-    from langchain.prompts import ChatPromptTemplate
-    from langchain.chains import LLMChain
-    from langchain.chains.router import MultiPromptChain
-    from langchain.chains.router.llm_router import LLMRouterChain, RouterOutputParser
-    from langchain.prompts import PromptTemplate
 
     load_dotenv()
 
-    llm = ChatOpenAI(model= "gpt-3.5-turbo", temperature=0, api_row=os.getenv('OPENAI_API_KEY'))
+    llm = ChatOpenAI(model= "gpt-3.5-turbo", temperature=0, api_key=os.getenv('OPENAI_API_KEY'))
 
     # Define specialized prompt templates
-    mapping_template = """You are an InterSystems Multi-Model expert and a global mapping specialist.\
-I will provide you with a global name, the main subscript, and the separator used. \
+    mapping_template = iris.cls("dc.inGenGBL.Core").GetMappingTemplate()
+    searching_template = iris.cls("dc.inGenGBL.Core").GetSearchingTemplate()
+
+    prompt_1 = ChatPromptTemplate.from_messages(
+        [
+            ("system", mapping_template),
+            ("human", "{input}"),
+        ]
+    )
+    prompt_2 = ChatPromptTemplate.from_messages(
+        [
+            ("system", searching_template),
+            ("human", "{input}"),
+        ]
+    )
+
+    chain_1 = prompt_1 | llm | StrOutputParser()
+    chain_2 = prompt_2 | llm | StrOutputParser()
+
+    MULTI_PROMPT_ROUTER_TEMPLATE = """Given a raw text input to a \
+    language model select the model prompt best suited for the input. \
+    You will be given the names of the available prompts and a \
+    description of what the prompt is best suited for. \
+    You may also revise the original input if you think that revising\
+    it will ultimately lead to a better response from the language model.
+    """
+
+    route_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", MULTI_PROMPT_ROUTER_TEMPLATE ),
+            ("human", "{input}"),
+        ]
+    )
+
+    class RouteQuery(TypedDict):
+        """Route query to destination."""
+        destination: Literal[ "search", "mapping globals"]
+
+    route_chain = (
+        route_prompt
+        | llm.with_structured_output(RouteQuery)
+        | itemgetter("destination")
+    )
+
+    chain = {
+        "destination": route_chain, 
+        "input": lambda x: x["input"],  # pass through input query
+    } | RunnableLambda(
+        lambda x: chain_1 if x["destination"] == "search" else chain_2,
+    )
+
+
+    from langchain.callbacks.tracers import ConsoleCallbackHandler
+
+    result = chain.invoke({"input": "search Spider-Man on glbs global with caret as delimiter"}, 
+        config={'callbacks': [ConsoleCallbackHandler()]})
+    """
+    result = chain.invoke({"input": "help to mapping a global called glbs with caret as delimiter"}, 
+        config={'callbacks': [ConsoleCallbackHandler()]})
+    """
+
+    return json.dumps(result)
+}
+
+ClassMethod GetMappingTemplate() As %String [ Language = python ]
+{
+    return """You are an InterSystems Multi-Model expert and a global mapping specialist.\
+I will provide you with a global name, the main subscript, and the delimiter used. \
 Your task is to analyze the structure and identify the number of pieces in each node, \
 as well as the data type of each piece.
 
@@ -54,7 +122,7 @@ You must create a Python ClassMethod as follows:
 ### Input:
 - **Global name**: For example, `"^mapping"`.
 - **Subscript**: Provided by the user, such as `"Less Simple,1"`.
-- **Separator**: Provided by the user (e.g., `","`), defaulting to a caret (`"^"`).
+- **Delimiter**: Provided by the user (e.g., `","`), defaulting to a caret (`"^"`).
 
 ### Output:
 You should produce a JSON object that describes the data structure and its types, which can be later converted into XML. This JSON should include:
@@ -71,7 +139,7 @@ You should produce a JSON object that describes the data structure and its types
 
 ### Sample Python Code:
 ```python
-ClassMethod MappingGlobal(name, subscript, separator="^") As %Status [ Language = python ]
+ClassMethod MappingGlobal(name, subscript="", separator="^") As %Status [ Language = python ]
 {
     import iris
     import json
@@ -181,94 +249,102 @@ ClassMethod MappingGlobal(name, subscript, separator="^") As %Status [ Language 
 }
 ```
 
-    Here is a task:
-    {input}
     
     """
+}
 
+ClassMethod GetSearchingTemplate() As %String [ Language = python ]
+{
+    return """You are an InterSystems Multi-Model expert and a InterSystems Iris global searching specialist.\
+I will provide you with a global name, the main subscript if needed, and the delimiter used. \
+Your task is to analyze the structure and identify the number of pieces in each node, \
+as well as the data type of each piece.
 
-    # Create prompt info dictionaries
-    prompt_infos = [
-        {
-            "name": "mapping",
-            "description": "Good for tasks about mapping globals",
-            "prompt_template": mapping_template,
-        },
-    ]
+You must create a Python ClassMethod as follows:
 
-    # Create destination chains (LLMChains) for each prompt
-    destination_chains = {}
-    for p_info in prompt_infos:
-        name = p_info["name"]
-        prompt_template = p_info["prompt_template"]
-        prompt = ChatPromptTemplate.from_template(template=prompt_template)
-        chain = LLMChain(llm=llm, prompt=prompt)
-        destination_chains[name] = chain
+### Input:
+- **Global name**: For example, `"^mapping"`.
+- **Subscript**: Provided by the user, such as `"Less Simple,1"`.
+- **Delimiter**: Provided by the user (e.g., `","`), defaulting to a caret (`"^"`).
 
-    destinations = [f"{p['name']}: {p['description']}" for p in prompt_infos]
-    destinations_str = "\n".join(destinations)
+### Output:
+You should produce a JSON object that describes the data structure and its types, which can be later converted into XML. This JSON should include:
+- **Key**: Identified from the provided subscript and properly inserted into the subscript that contain the output.
+- **Content**: The founded register.
 
-    # Define a default chain for inputs that don't match any specialized prompt
-    default_prompt = ChatPromptTemplate.from_template("{input}")
-    default_chain = LLMChain(llm=llm, prompt=default_prompt)
+### Example Global:
+```plaintext
+^mlb = "Major League Baseball"
+^mlb("AL") = "American League"
+^mlb("AL","Central") = "AL Central"
+^mlb("AL","East") = "AL East"
+^mlb("AL","East",1) = "Baltimore"
+^mlb("AL","East",2) = "Boston"
+^mlb("AL","East",3) = "NY Yankees"
+^mlb("AL","East",4) = "Tampa Bay"
+^mlb("AL","East",5) = "Toronto"
+^mlb("AL","West") = "AL West"
+^mlb("AL","West",1) = "Houston"
+^mlb("AL","West",2) = "LA Angels"
+^mlb("AL","West",3) = "Oakland"
+^mlb("AL","West",4) = "Seattle"
+^mlb("AL","West",5) = "Texas"
+^mlb("NL") = "National League"
+```
 
-    MULTI_PROMPT_ROUTER_TEMPLATE = """Given a raw text input to a \
-    language model select the model prompt best suited for the input. \
-    You will be given the names of the available prompts and a \
-    description of what the prompt is best suited for. \
-    You may also revise the original input if you think that revising\
-    it will ultimately lead to a better response from the language model.
+### Sample Python Code:
+Search for "Houston" in ^mlb global
+```python
+ClassMethod SearchingGlobal() As %Status [ Language = python ]
+{
+    import iris
+    import json
+    import pandas as pd
 
-    << FORMATTING >>
-    Return a string snippet enclosed by triple backticks a JSON object formatted to look like below:
-    {
-        "destination": string \ name of the prompt to use or "default"
-        "next_inputs": string \ a potentially modified version of the original input
-    }
+    found = []
+    m = iris.gref('^mlb')
+    key = ''
+    search = 'Houston'
+    while True:
+        key = m.order([key])
+        if key == None:
+            break
+        s = m.get([key])
+        if search in s:
+            found.append({"key":[key], "content": s})
+        if (m.data([key]) > 0):
+            lvl1 = True
+            subs1 = ''
+            while (lvl1):
+                subs1 = m.order([key, subs1])
+                s = m.get([key, subs1])
+                if search in s:
+                    found.append({"key":[key, subs1], "content": s})
+                if subs1 == None:
+                    lvl1 = False
+                    break
+                if (m.data([key, subs1]) > 0):
+                    lvl2 = True
+                    subs2 = ''
+                    while (lvl2):
+                        subs2 = m.order([key, subs1, subs2])
+                        if subs2 == None:
+                            lvl2 = False
+                            break
+                        s = m.get([key, subs1, subs2])
+                        if search in s:
+                            found.append({"key":[key, subs1, subs2], "content": s})
+    df = pd.DataFrame(data=found, columns=["key","content"])
+    return json.dumps(df.to_json())
+}
+```
 
-    REMEMBER: "destination" MUST be one of the candidate prompt \
-    names specified below OR it can be "default" if the input is not \
-    well suited for any of the candidate prompts. \
-    REMEMBER: "next_inputs" can just be the original input \
-    if you don't think any modifications are needed.
+### Sample Output Json expected:
+```json
+{"key":["AL","West","1"],"content":"Houston"}
+```
 
-    << CANDIDATE PROMPTS >>
-    {destinations}
-
-    REMEMBER: If destination name not there input the task
-
-    << INPUT >>
-    {input}
-
-    << OUTPUT (remember to include the ```
-
-    json
-
-    ```)>>"""
-
-    try:
-
-        # Create the router prompt template
-        router_template = MULTI_PROMPT_ROUTER_TEMPLATE.format(destinations=destinations_str)  # (a prompt template for the router to use)
-        router_prompt = PromptTemplate(template=router_template, input_variables=["input"], output_parser=RouterOutputParser())
-        router_chain = LLMRouterChain.from_llm(llm, router_prompt)
-
-        # Create the MultiPromptChain
-        chain = MultiPromptChain(
-            router_chain=router_chain,
-            destination_chains=destination_chains,
-            default_chain=default_chain,
-            verbose=True,
-        )
-
-        result = chain.invoke("help to mapping a global called glbs with caret as separator")
-    except Exception as err:
-        print( str(err))
-        return {"error": str(err)}
-
-
-
-    return json.dumps(result)
+"""
 }
 
 }
