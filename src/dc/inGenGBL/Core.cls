@@ -1,20 +1,6 @@
 Class dc.inGenGBL.Core Extends %RegisteredObject
 {
 
-ClassMethod Split(gblName As %String, chunkSize As %Integer = 3, startAt As %String = "", Output status As %Status) As %String
-{
-    Set output = ""
-    Set status = $$$OK
-    Try {
-        Set chunks = $$SplitSize^%GSIZE(gblName, "N", chunkSize, startAt)
-        Set output = $ListToString($list(chunks,2),"|")
-    } Catch ex {
-        Set status=ex.AsStatus()
-    }
-
-    Return output
-}
-
 ClassMethod Process(input As %String = "") As %String [ Language = python ]
 {
     import os
@@ -74,7 +60,7 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
 
     class RouteQuery(TypedDict):
         """Route query to destination."""
-        destination: Literal[ "search", "mapping globals"]
+        destination: Literal["mapping globals", "search", ]
 
     route_chain = (
         route_prompt
@@ -86,7 +72,7 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
         "destination": route_chain, 
         "input": lambda x: x["input"],  # pass through input query
     } | RunnableLambda(
-        lambda x: chain_1 if x["destination"] == "search" else chain_2,
+        lambda x: chain_1 if x["destination"] == "mapping globals" else chain_2,
     )
 
     try:
@@ -126,7 +112,7 @@ You should produce a JSON object that describes the data structure and its types
 
 ### Sample Python Code:
 ```python
-ClassMethod MappingGlobal(name, subscript="", separator="^") As %Status [ Language = python ]
+ClassMethod MappingGlobal() As %String [ Language = python ]
 {{
     import iris
     import json
