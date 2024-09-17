@@ -35,7 +35,7 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
 
     load_dotenv()
 
-    llm = ChatOpenAI(model= "gpt-3.5-turbo", temperature=0, api_key=os.getenv('OPENAI_API_KEY'))
+    llm = ChatOpenAI(model=os.getenv('LLM_MODEL'), temperature=0, api_key=os.getenv('OPENAI_API_KEY'))
 
     # Define specialized prompt templates
     mapping_template = iris.cls("dc.inGenGBL.Core").GetMappingTemplate()
