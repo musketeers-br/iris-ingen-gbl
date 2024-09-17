@@ -16,10 +16,14 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
 
     from langchain_core.output_parsers import StrOutputParser
     from langchain_core.prompts import ChatPromptTemplate
-    from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+    from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
     from langchain_openai import ChatOpenAI
 
     load_dotenv()
+
+    def get_global_size(global_name):
+        """Call this to get the size of a global"""
+        return iris.cls("dc.inGenGBL.Utils").GetGlobalSize(global_name)
 
     llm = ChatOpenAI(model=os.getenv('LLM_MODEL'), temperature=0, api_key=os.getenv('OPENAI_API_KEY'))
 
@@ -40,8 +44,26 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
         ]
     )
 
+    prompt_3 = ChatPromptTemplate.from_messages(
+        [
+            ("system", """ You are an InterSystems Multi-Model specialist and \
+            an expert in global size analysis.Your task is to analyze the size \
+            of a given global and provide detailed information about it. \ 
+            Use the get_global_size function to obtain the necessary data.
+            """),
+            ("human", "{input}"),
+        ]
+    )
+
     chain_1 = prompt_1 | llm | StrOutputParser()
     chain_2 = prompt_2 | llm | StrOutputParser()
+
+    chain_3 = RunnableParallel(
+        {
+            "system": prompt_3 | llm | StrOutputParser(),
+            "global_size": lambda x: get_global_size(x["input"])
+        }
+    )
 
     MULTI_PROMPT_ROUTER_TEMPLATE = """Given a raw text input to a \
     language model select the model prompt best suited for the input. \
@@ -60,7 +82,7 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
 
     class RouteQuery(TypedDict):
         """Route query to destination."""
-        destination: Literal["mapping globals", "search", ]
+        destination: Literal["mapping globals", "search", "global size"]
 
     route_chain = (
         route_prompt
@@ -71,9 +93,13 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
     chain = {
         "destination": route_chain, 
         "input": lambda x: x["input"],  # pass through input query
-    } | RunnableLambda(
-        lambda x: chain_1 if x["destination"] == "mapping globals" else chain_2,
-    )
+    } | RunnableParallel(
+        {
+            "mapping_globals": lambda x: chain_1 if x["destination"] == "mapping globals" else None,
+            "search": lambda x: chain_2 if x["destination"] == "search" else None,
+            "global_size": lambda x: chain_3 if x["destination"] == "global size" else None
+        }
+    ) | RunnableLambda(lambda x: next(item for item in x.values() if item is not None))
 
     try:
         result = chain.invoke({"input": input})
@@ -91,11 +117,6 @@ Your task is to analyze the structure and identify the number of pieces in each 
 as well as the data type of each piece.
 
 You must create a Python ClassMethod as follows:
-
-### Input:
-- **Global name**: For example, `"^mapping"`.
-- **Subscript**: Provided by the user, such as `"Less Simple,1"`.
-- **Delimiter**: Provided by the user (e.g., `","`), defaulting to a caret (`"^"`).
 
 ### Output:
 You should produce a JSON object that describes the data structure and its types, which can be later converted into XML. This JSON should include:
