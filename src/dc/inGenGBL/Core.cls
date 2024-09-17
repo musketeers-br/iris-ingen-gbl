@@ -140,82 +140,76 @@ ClassMethod MappingGlobal() As %String [ Language = python ]
 
     def dataType_identify(value):
         if isinstance(value, (int, float)) or (isinstance(value, str) and '.' in value and value.replace('.', '').isdigit()):
-            return "%Numeric"
-        elif isinstance(value, str):
-            if value.isdigit() and len(value) == 5:
-                return "%Date"
-            elif ',' in value and all(part.isdigit() for part in value.split(',')):
-                return "%DateTime"
-            elif value.isdigit():
-                return "%Integer"
+            dataType = "%Numeric"
+        elif isinstance(row, str):
+            if row.isdigit() and len(row) == 5:
+                dataType = "%Date"
+            elif ',' in row and all(part.isdigit() and len(part) == 5 for part in row.split(',')):
+                row_type = "%DateTime"
+            elif row.isdigit():
+                dataType = "%Integer"
             else:
-                return "%String"
-        return "%String"
+                dataType = "%String"
+        else:
+            dataType = "%String"
 
-    # Validate subscript input
-    if not isinstance(subscript, str) or not subscript:
-        return {{"error": "Invalid subscript provided"}}
+        return dataType
 
-    # Initialize global and variables
-    try:
-        mapping = iris.gref(name)
-    except Exception as e:
-        return {{"error": str(e)}}
-
-    delimiter = separator if separator else "^"
+    mapping = iris.gref('^mapping')
+    delimiter = "^"
     json_obj = {{
-        "Storage": {{
-            "Type": "%CacheSQLStorage",
-            "StreamLocation": "^Mapping.Example2S",
-            "SQLMap": {{
-                "Type": "data",
-                "Global": name,
-                "Subscript": [],
-                "Data": [],
-                "_name": "Map1"
-            }},
-            "_name": "NewStorage1"
+            "Storage": {{
+                "Type": "%CacheSQLStorage",
+                "StreamLocation": "^Mapping.Example2S",
+                "SQLMap": {{
+                    "Type": "data",
+                    "Global": "^mapping",
+                    "Subscript": [
+                        {{
+                            "Expression": '"Less Simple"',
+                            "_name": "1"
+                        }},
+                        {{
+                            "Expression": "1",
+                            "_name": "2"
+                        }},
+                        {{
+                            "Expression": "{{rowIdentificator}}",
+                            "_name": "3"
+                        }}
+                    ],
+                    "Data": [],
+                    "_name": "Map1"
+                }},
+                "_name": "NewStorage1"
+            }}
         }}
-    }}
-
-    # Parse subscript structure
-    subscripts = subscript.split(",")
-    for idx, subs in enumerate(subscripts):
-        json_obj["Storage"]["SQLMap"]["Subscript"].append({{
-            "Expression": subs,
-            "_name": str(idx + 1)
-        }})
-
-    # Sample records to determine data types
-    sample_count = 100
     key = ""
+
     content = []
 
-    for _ in range(sample_count):
+    while True:
         row = {{}}
-        key = mapping.order(subscripts + [key])
+        key = mapping.order(["Less Simple",1,key])
         if key is None:
             break
         row["key"] = dataType_identify(key)
 
-        reg = mapping.get(subscripts + [key])
+        reg = mapping.get(["Less Simple",1,key])
         data = []
         columns = reg.split(delimiter)
         for column in columns:
             data.append(dataType_identify(column))
 
         k = ''
-        if mapping.data(subscripts + [key]) > 0:
-            for (k, value) in mapping.orderiter(subscripts + [key, k]):
+        if (mapping.data(["Less Simple",1,key]) > 0):
+            for (k, value) in mapping.orderiter(["Less Simple",1,key, k]):
                 data.append(k[-1])
-        
         row["data"] = data
         content.append(row)
-
-    # Analyze data types
     keys_type = {{}}
     data_type = []
-
+    
     for item in content:
         key_type = item['key']
         keys_type[key_type] = keys_type.get(key_type, 0) + 1
@@ -227,17 +221,24 @@ ClassMethod MappingGlobal() As %String [ Language = python ]
             if dataItem_type not in data_type[index]:
                 data_type[index][dataItem_type] = 0
             data_type[index][dataItem_type] += 1
-
-    # Assign the most frequent data type for subscripts and fields
+        
     json_obj['Storage']['SQLMap']['Subscript'][2]['_type'] = max(keys_type, key=keys_type.get)
-    for index in range(len(data_type)):
+    for index in range(0,len(data_type)):
         dtype = max(data_type[index], key=data_type[index].get)
-        json_obj['Storage']['SQLMap']['Data'].append({{
-            "Delimiter": delimiter,
-            "Piece": index + 1,
-            "_name": "col" + str(index),
-            "_type": dtype
-        }})
+        if dtype in ["%String","%Numeric","%DateTime","%Date","%Integer"]:
+            json_obj['Storage']['SQLMap']['Data'].append({{
+                "Delimiter": delimiter,
+                "Piece": index + 1,
+                "_name": "col"+str(index),
+                "_type": dtype
+            }})
+        else:
+            json_obj['Storage']['SQLMap']['Data'].append({{
+                "Delimiter": delimiter,
+                "Node": dtype,
+                "Piece": 1,
+                "_name": "col"+str(index)
+            }})
 
     return json.dumps(json_obj)
 }}

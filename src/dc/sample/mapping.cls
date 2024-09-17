@@ -41,7 +41,7 @@ ClassMethod pop()
     Set ^mapping("Less Simple",1,6,"Activity")="Marching Band"
 }
 
-ClassMethod MappingGlobal() As %Status [ Language = python ]
+ClassMethod MappingGlobal() As %String [ Language = python ]
 {
     import iris
     import json
@@ -115,7 +115,6 @@ ClassMethod MappingGlobal() As %Status [ Language = python ]
                 data.append(k[-1])
         row["data"] = data
         content.append(row)
-    # Analisando os tipos de dados em content
     keys_type = {}
     data_type = []
     
@@ -148,10 +147,8 @@ ClassMethod MappingGlobal() As %Status [ Language = python ]
                 "Piece": 1,
                 "_name": "col"+str(index)
             })
-    print(json.dumps(json_obj))
 
-
-    return True
+    return json.dumps(json_obj)
 }
 
 }
