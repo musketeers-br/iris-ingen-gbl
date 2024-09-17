@@ -11,15 +11,7 @@ ClassMethod Split(gblName As %String, chunkSize As %Integer = 3, startAt As %Str
     } Catch ex {
         Set status=ex.AsStatus()
     }
-    /*
-    my_company = iris.cls('Sample.Company')._New()
-    my_company.Name = 'Acme Widgets, Inc.'
-    my_company.TaxID = '123456789'
-    status = my_company._Save()
-    print(status)
-    print(my_company._Id())
-    
-    */
+
     Return output
 }
 
@@ -97,15 +89,10 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
         lambda x: chain_1 if x["destination"] == "search" else chain_2,
     )
 
-
-    from langchain.callbacks.tracers import ConsoleCallbackHandler
-
-    result = chain.invoke({"input": "search Spider-Man on glbs global with caret as delimiter"}, 
-        config={'callbacks': [ConsoleCallbackHandler()]})
-    """
-    result = chain.invoke({"input": "help to mapping a global called glbs with caret as delimiter"}, 
-        config={'callbacks': [ConsoleCallbackHandler()]})
-    """
+    try:
+        result = chain.invoke({"input": input})
+    except Exception as err:
+        result = {"error": str(err)}
 
     return json.dumps(result)
 }
@@ -140,7 +127,7 @@ You should produce a JSON object that describes the data structure and its types
 ### Sample Python Code:
 ```python
 ClassMethod MappingGlobal(name, subscript="", separator="^") As %Status [ Language = python ]
-{
+{{
     import iris
     import json
 
@@ -160,37 +147,37 @@ ClassMethod MappingGlobal(name, subscript="", separator="^") As %Status [ Langua
 
     # Validate subscript input
     if not isinstance(subscript, str) or not subscript:
-        return {"error": "Invalid subscript provided"}
+        return {{"error": "Invalid subscript provided"}}
 
     # Initialize global and variables
     try:
         mapping = iris.gref(name)
     except Exception as e:
-        return {"error": str(e)}
+        return {{"error": str(e)}}
 
     delimiter = separator if separator else "^"
-    json_obj = {
-        "Storage": {
+    json_obj = {{
+        "Storage": {{
             "Type": "%CacheSQLStorage",
             "StreamLocation": "^Mapping.Example2S",
-            "SQLMap": {
+            "SQLMap": {{
                 "Type": "data",
                 "Global": name,
                 "Subscript": [],
                 "Data": [],
                 "_name": "Map1"
-            },
+            }},
             "_name": "NewStorage1"
-        }
-    }
+        }}
+    }}
 
     # Parse subscript structure
     subscripts = subscript.split(",")
     for idx, subs in enumerate(subscripts):
-        json_obj["Storage"]["SQLMap"]["Subscript"].append({
+        json_obj["Storage"]["SQLMap"]["Subscript"].append({{
             "Expression": subs,
             "_name": str(idx + 1)
-        })
+        }})
 
     # Sample records to determine data types
     sample_count = 100
@@ -198,7 +185,7 @@ ClassMethod MappingGlobal(name, subscript="", separator="^") As %Status [ Langua
     content = []
 
     for _ in range(sample_count):
-        row = {}
+        row = {{}}
         key = mapping.order(subscripts + [key])
         if key is None:
             break
@@ -219,7 +206,7 @@ ClassMethod MappingGlobal(name, subscript="", separator="^") As %Status [ Langua
         content.append(row)
 
     # Analyze data types
-    keys_type = {}
+    keys_type = {{}}
     data_type = []
 
     for item in content:
@@ -228,7 +215,7 @@ ClassMethod MappingGlobal(name, subscript="", separator="^") As %Status [ Langua
 
         for index, dataItem in enumerate(item["data"]):
             if len(data_type) <= index:
-                data_type.append({})
+                data_type.append({{}})
             dataItem_type = dataItem
             if dataItem_type not in data_type[index]:
                 data_type[index][dataItem_type] = 0
@@ -238,15 +225,15 @@ ClassMethod MappingGlobal(name, subscript="", separator="^") As %Status [ Langua
     json_obj['Storage']['SQLMap']['Subscript'][2]['_type'] = max(keys_type, key=keys_type.get)
     for index in range(len(data_type)):
         dtype = max(data_type[index], key=data_type[index].get)
-        json_obj['Storage']['SQLMap']['Data'].append({
+        json_obj['Storage']['SQLMap']['Data'].append({{
             "Delimiter": delimiter,
             "Piece": index + 1,
             "_name": "col" + str(index),
             "_type": dtype
-        })
+        }})
 
     return json.dumps(json_obj)
-}
+}}
 ```
 
     
@@ -296,7 +283,7 @@ You should produce a JSON object that describes the data structure and its types
 Search for "Houston" in ^mlb global
 ```python
 ClassMethod SearchingGlobal() As %Status [ Language = python ]
-{
+{{
     import iris
     import json
     import pandas as pd
@@ -311,7 +298,7 @@ ClassMethod SearchingGlobal() As %Status [ Language = python ]
             break
         s = m.get([key])
         if search in s:
-            found.append({"key":[key], "content": s})
+            found.append({{"key":[key], "content": s}})
         if (m.data([key]) > 0):
             lvl1 = True
             subs1 = ''
@@ -319,7 +306,7 @@ ClassMethod SearchingGlobal() As %Status [ Language = python ]
                 subs1 = m.order([key, subs1])
                 s = m.get([key, subs1])
                 if search in s:
-                    found.append({"key":[key, subs1], "content": s})
+                    found.append({{"key":[key, subs1], "content": s}})
                 if subs1 == None:
                     lvl1 = False
                     break
@@ -333,15 +320,15 @@ ClassMethod SearchingGlobal() As %Status [ Language = python ]
                             break
                         s = m.get([key, subs1, subs2])
                         if search in s:
-                            found.append({"key":[key, subs1, subs2], "content": s})
+                            found.append({{"key":[key, subs1, subs2], "content": s}})
     df = pd.DataFrame(data=found, columns=["key","content"])
     return json.dumps(df.to_json())
-}
+}}
 ```
 
 ### Sample Output Json expected:
 ```json
-{"key":["AL","West","1"],"content":"Houston"}
+{{"key":["AL","West","1"],"content":"Houston"}}
 ```
 
 """

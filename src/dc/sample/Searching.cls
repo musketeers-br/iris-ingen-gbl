@@ -1,7 +1,7 @@
 Class dc.sample.Searching Extends %RegisteredObject
 {
 
-ClassMethod SearchingGlobal() As %Status [ Language = python ]
+ClassMethod Searching() As %Status [ Language = python ]
 {
     import iris
     import json
