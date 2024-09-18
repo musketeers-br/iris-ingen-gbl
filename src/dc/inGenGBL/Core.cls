@@ -17,15 +17,26 @@ ClassMethod Process(input As %String = "") As %String [ Language = python ]
     from langchain_core.output_parsers import StrOutputParser
     from langchain_core.prompts import ChatPromptTemplate
     from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
-    from langchain_openai import ChatOpenAI
 
     load_dotenv()
+
+    # flavors
+    if (os.getenv('LLM') == 'OpenAI'):
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(model=os.getenv('LLM_MODEL'), temperature=0, api_key=os.getenv('OPENAI_API_KEY'))
+
+    if (os.getenv('LLM') == 'Claude'):
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(model=os.getenv('LLM_MODEL'), temperature=0, api_key=os.getenv('ANTHROPIC_API_KEY'))
+
+    if (os.getenv('LLM') == 'GROQ'):
+        from langchain_groq import ChatGroq
+        llm = ChatGroq(model=os.getenv('LLM_MODEL'), temperature=0, api_key=os.getenv('GROQ_API_KEY'))
+    #-=
 
     def get_global_size(global_name):
         """Call this to get the size of a global"""
         return iris.cls("dc.inGenGBL.Utils").GetGlobalSize(global_name)
-
-    llm = ChatOpenAI(model=os.getenv('LLM_MODEL'), temperature=0, api_key=os.getenv('OPENAI_API_KEY'))
 
     # Define specialized prompt templates
     mapping_template = iris.cls("dc.inGenGBL.Core").GetMappingTemplate()

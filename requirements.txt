@@ -2,7 +2,9 @@ requests==2.31.0
 langchain-iris>=0.1.2
 openai>=1.25.1
 pandas==1.5.0
-langchain-openai>=0.1.6
 langchain-community>=0.2.0
 SQLAlchemy
 python-dotenv
+langchain-openai>=0.1.6
+langchain-anthropic
+langchain-groq

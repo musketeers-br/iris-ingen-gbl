@@ -1,0 +1,14 @@
+# Available for OpenAI, Claude, GROQ, Gemini
+LLM=OpenAI
+#LLM=Claude
+#LLM=GROQ
+# claude-3-sonnet-20240229 gpt-3.5-turbo
+LLM_MODEL=gpt-3.5-turbo
+#LLM_MODEL=claude-3-sonnet-20240229
+#LLM_MODEL=mixtral-8x7b-32768
+# OpenAI ChatGPT Key
+OPENAI_API_KEY=your api key
+# Groq Key
+GROQ_API_KEY=your api key
+# Claude Key
+ANTHROPIC_API_KEY=your api key

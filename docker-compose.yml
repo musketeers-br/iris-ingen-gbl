@@ -13,5 +13,8 @@ services:
     volumes:
       - ./:/home/irisowner/dev
     environment:
-        - OPENAI_API_KEY=${OPENAI_API_KEY}
+        - LLM=${LLM}
         - LLM_MODEL=${LLM_MODEL}
+        - OPENAI_API_KEY=${OPENAI_API_KEY}
+        - GROQ_API_KEY=${GROQ_API_KEY}
+        - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
